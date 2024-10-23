@@ -608,6 +608,69 @@ const loginWithGoogle = async (req, res) => {
   }
 };
 
+const loginAsAdmin = async (req, res) => {
+  const { token, shopId } = req.body;
+
+  if (!token || !shopId) {
+    return res.status(400).json({ message: 'Token and shopId are required' });
+  }
+
+  try {
+    // Verify the token and extract userId
+    const decodedToken = jwt.verify(token, JWT_SECRET);
+    const { userId } = decodedToken;
+
+    // Find the user in the database by userId
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Check if the user is an admin
+    if (user.isAdmin === true) {
+      // Find the shop by shopId
+      const shop = await Shop.findById(shopId);
+      if (!shop) {
+        return res.status(404).json({ message: 'Shop not found' });
+      }
+
+      // Find the owner of the shop in the User model
+      const owner = await User.findById(shop.owner);
+      if (!owner) {
+        return res.status(404).json({ message: 'Shop owner not found' });
+      }
+
+      // Create access token and refresh token
+      const accessToken = jwt.sign(
+        { userId: owner._id, username: owner.username },
+        JWT_SECRET,
+        { expiresIn: "7h" }  // Access token valid for 7 hours
+      );
+
+      const refreshToken = jwt.sign(
+        { userId: owner._id, username: owner.username },
+        JWT_SECRET,
+        { expiresIn: "30d" }  // Refresh token valid for 30 days
+      );
+
+      // Send the tokens to the frontend
+      return res.json({
+        token_type: "Bearer",
+        expires_in: "7h",  // Expiration for the access token
+        access_token: accessToken,
+        refresh_token: refreshToken,  // Long-lived refresh token
+      });
+
+    } else {
+      return res.status(403).json({ message: 'Access denied. User is not an admin.' });
+    }
+
+  } catch (error) {
+    console.error('Error verifying token:', error);
+    return res.status(401).json({ message: 'Invalid or expired token', error: error.message });
+  }
+};
+
 
 module.exports = {
   ownerRegister,
@@ -623,5 +686,6 @@ module.exports = {
   userRegister,
   userRegisterApp,
   deliverymanLogin,
-  loginWithGoogle
+  loginWithGoogle,
+  loginAsAdmin
 };
