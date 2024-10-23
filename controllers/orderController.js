@@ -259,16 +259,17 @@ const getOrders = async (req, res) => {
     }
 
     if (user.is_owner) {
+      console.log(user.is_owner);
+
       let orders = [];
       const shop = await Shop.findOne({ owner: userId });
 
       if (shop) {
         const shopId = shop._id;
 
-        // Get all product IDs belonging to the shop
         const products = await Product.find({ shop: shopId });
         const productIds = products.map((product) => product._id);
-        
+
         orders = await Order.find({ "items.productId": { $in: productIds } })
           .populate({
             path: "customer",
@@ -289,7 +290,7 @@ const getOrders = async (req, res) => {
       }
 
       res.status(200).json({ orders: orders, count: orders.length });
-    } else if (user.isDelivery){
+    } else if (user.isDelivery) {
       const orders = await Order.find({
         deliveryManId: userId,
       })
@@ -321,7 +322,7 @@ const getOrders = async (req, res) => {
 
       // const groupedByRazorpayOrderId = orders.reduce((acc, order) => {
       //   const razorpayOrderId = order.razorpay_order_id;
-      
+
       //   if (!acc[razorpayOrderId]) {
       //     acc[razorpayOrderId] = {
       //       razorpayOrderId,
@@ -331,15 +332,15 @@ const getOrders = async (req, res) => {
       //       createdAt: order.created_at,
       //     };
       //   }
-      
+
       //   acc[razorpayOrderId].orders.push(order);
       //   acc[razorpayOrderId].totalAmount += order.totalPrice; // Sum up the total amount for the grouped order ID
-      
+
       //   return acc;
       // }, {});
-      
+
       // res.json({orders: groupedByRazorpayOrderId});      
-      res.json({orders});
+      res.json({ orders });
     }
   } catch (error) {
     console.error("Get Order History Error:", error);
@@ -394,15 +395,15 @@ const saveOrderToDatabase = (paymentDetails, cartItems, user) => {
         orderItems: [],
       };
     }
-  
+
     acc[item.shopId].totalPrice += item.newPrice * item.quantity;
-  
+
     acc[item.shopId].orderItems.push({
       productId: item.id,
       quantity: item.quantity,
       price: item.newPrice,
     });
-  
+
     return acc;
   }, {});
 
@@ -426,7 +427,7 @@ const saveOrderToDatabase = (paymentDetails, cartItems, user) => {
       },
       status: 'Pending'
     });
-    
+
     newOrder.save();
   });
 };
@@ -438,13 +439,13 @@ const creactOrder = async (req, res) => {
     // Fetch the product details from the Product model
     const product = await Product.findOne(productId);
     const user = await User.findOne(userId)
-    
+
     if (!product) {
       return res.status(404).json({ message: 'Product not found' });
     }
 
     if (!user) {
-      return res.status(404).json({message: 'User not found'})
+      return res.status(404).json({ message: 'User not found' })
     }
 
     // Extract customer and quantity from the request body
@@ -459,7 +460,7 @@ const creactOrder = async (req, res) => {
 
     // Create a new order object
     const order = new Order({
-      customer:user._id, // Use the correct customer reference from the request
+      customer: user._id, // Use the correct customer reference from the request
       items: [
         {
           product: product._id, // Reference to the product
@@ -509,7 +510,7 @@ const createOrder = async (req, res) => {
         console.log("OrderID: ", razor_order.id);
         return razor_order;
       });
-      
+
       const razorpayOrders = await Promise.all(orderPromises);
       console.log("Razorpay Orders created successfully.");
 
@@ -543,7 +544,8 @@ const createOrder = async (req, res) => {
       res.status(500).json({
         success: false,
         error: "Order creation failed",
-        details: error.message });
+        details: error.message
+      });
     }
   } else {
     res.status(405).json({ error: "Method not allowed" });
@@ -645,32 +647,33 @@ const deleteOrder = async (req, res) => {
 const shipOrder = async (req, res) => {
   const ownerId = req.user.userId;
   const { deliveryMan, orderId } = req.body;
-  console.log("orderId: ", orderId);
 
   const user = await User.findById(ownerId);
+
   if (user.is_owner) {
     const shop = await Shop.findOne({ owner: user._id });
     const shopId = shop._id;
     console.log("shopId: ", shopId);
     const deliverPerson = await User.findOne({ isDelivery: true, email: deliveryMan });
-    
+
     if (deliverPerson) {
-      try{
+      try {
 
         const updatedOrder = await Order.findOneAndUpdate(
-          {"paymentDetails.razorpay_order_id": orderId, shopId: shopId},
+          { "razorpay_order_id": orderId, shopId: shopId },
           { status: "Shipped", deliveryManId: deliverPerson._id },
-          { new: true}
+          { new: true }
         );
-  
-         res.json({success: true, message: "Order shipped into delivery man"});
+
+        res.json({ success: true, message: "Order shipped into delivery man" });
+
       } catch (err) {
         console.log(err);
-        
+
       }
-      
+
     } else {
-      return res.json({success: false, message: "Delivery Man not exist"});
+      return res.json({ success: false, message: "Delivery Man not exist" });
     }
 
   }
@@ -680,17 +683,17 @@ const updateOrder = async (req, res) => {
   const { status, orderId, amount } = req.body;
   const userId = req.user.userId;
   const user = User.findById(userId);
-  
+
   if (user.isDelivery) {
-    
+
   } else {
     if (status == "Delivered") {
       const updatedOrder = await Order.findOneAndUpdate(
         { _id: orderId },
         { status: status }
       );
-      
-      return res.json({success: true, message: "Order Delivered successfully"});
+
+      return res.json({ success: true, message: "Order Delivered successfully" });
     } else if (status == "Cancelled") {
       console.log(status, orderId, amount);
       try {
@@ -705,7 +708,7 @@ const updateOrder = async (req, res) => {
         const refund = await razorpay.payments.refund(paymentId, {
           amount: amount * 100, // Amount in paise
           notes: {
-              reason: "Refund for order #123"
+            reason: "Refund for order #123"
           }
         });
         console.log(refund);
@@ -720,10 +723,10 @@ const updateOrder = async (req, res) => {
         console.error(error);
       }
 
-      
-      
+
+
     } else {
-      return res.status(400).json({success: false, message: "Bad request!"});
+      return res.status(400).json({ success: false, message: "Bad request!" });
     }
   }
 }
