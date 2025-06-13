@@ -46,6 +46,7 @@ const ownerRegister = async (req, res) => {
 
 const userRegister = async (req, res) => {
   try {
+    console.log("req.body", req.body);
     const {
       email,
       password,
@@ -55,6 +56,7 @@ const userRegister = async (req, res) => {
       longitude,
       latitude,
     } = req.body;
+    console.log("aaaa", longitude)
     const user = new User({
       email,
       username: first_name + " " + last_name,
@@ -70,6 +72,7 @@ const userRegister = async (req, res) => {
       user.verify_token = generateVerifyToken();
       await user.save();
       await sendEmail(email, user.verify_token, API_URL, "verification");
+      console.log("dddddd")
       return res.status(201).json({
         message: "Success",
         username: user.username,
@@ -297,7 +300,7 @@ const adminregister = async (req, res) => {
 const login = async (req, res) => {
   try {
     const { email, password } = req.body.data.attributes;
-
+    console.log("login", email, password);
     const user = await User.findOne({ email: email.toLowerCase() });
     if (!user) {
       return res.status(400).json({
@@ -310,11 +313,11 @@ const login = async (req, res) => {
       });
     }
 
-    if (!user.isVerified) {
-      return res.status(400).json({
-        errors: [{ detail: "Please verify your account..." }],
-      });
-    }
+    // if (!user.isVerified) {
+    //   return res.status(400).json({
+    //     errors: [{ detail: "Please verify your account..." }],
+    //   });
+    // }
 
     const token = jwt.sign(
       { userId: user._id, username: user.username },
